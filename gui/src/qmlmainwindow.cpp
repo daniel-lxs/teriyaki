@@ -3,6 +3,10 @@
 #include "qmlsvgprovider.h"
 #include "chiaki/log.h"
 #include "chiaki/time.h"
+#include "chiaki/latprobe.h"
+#include <atomic>
+
+static std::atomic<int64_t> lat_probe_pending_pts{-1};
 #include "streamsession.h"
 
 #include <qpa/qplatformnativeinterface.h>
@@ -3016,6 +3020,8 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost, q
     if (!frame.frame)
         return;
 
+    chiaki_lat_probe_mark(frame.frame->pts, CHIAKI_LAT_GUI);
+
     if (bypass_frame_queue) {
         {
             QMutexLocker locker(&direct_frame_mutex);
@@ -5733,6 +5739,11 @@ void QmlMainWindow::processDeferredSwapTask(qint64 submit_begin_us,
             if (present_swap_begin_us >= submit_us)
                 logLatencyStats("submit_to_swap", present_swap_begin_us - submit_us);
             pl_swapchain_swap_buffers(placebo_swapchain);
+            {
+                const int64_t probe_pts = lat_probe_pending_pts.exchange(-1);
+                if (probe_pts >= 0)
+                    chiaki_lat_probe_mark(probe_pts, CHIAKI_LAT_SWAPPED);
+            }
 
             const qint64 swap_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
             logSwapInterval(swap_us);
@@ -6698,6 +6709,9 @@ void QmlMainWindow::render()
             direct_frame = {};
         }
         if (incoming) {
+            const int64_t probe_pts = incoming->pts;
+            chiaki_lat_probe_mark(probe_pts, CHIAKI_LAT_RENDER);
+            lat_probe_pending_pts.store(probe_pts);
             pl_unmap_avframe(placeboGpu(), &direct_frame);
             direct_frame = {};
             pl_avframe_params avparams = {};
@@ -6710,6 +6724,7 @@ void QmlMainWindow::render()
                 if (backend && backend->zeroCopy())
                     backend->disableZeroCopy();
             }
+            chiaki_lat_probe_mark(probe_pts, CHIAKI_LAT_MAPPED);
             av_frame_free(&incoming);
         }
         direct_render_frame = direct_frame;
@@ -7086,6 +7101,11 @@ void QmlMainWindow::render()
                 {
                     QMutexLocker locker(&placebo_swapchain_mutex);
                     pl_swapchain_swap_buffers(placebo_swapchain);
+                }
+                {
+                    const int64_t probe_pts = lat_probe_pending_pts.exchange(-1);
+                    if (probe_pts >= 0)
+                        chiaki_lat_probe_mark(probe_pts, CHIAKI_LAT_SWAPPED);
                 }
                 const qint64 swap_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
                 logSwapInterval(swap_us);

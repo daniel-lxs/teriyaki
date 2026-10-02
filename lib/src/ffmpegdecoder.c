@@ -1,6 +1,7 @@
 
 #include <chiaki/ffmpegdecoder.h>
 #include <chiaki/time.h>
+#include <chiaki/latprobe.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixdesc.h>
 #include <math.h>
@@ -196,6 +197,8 @@ CHIAKI_EXPORT bool chiaki_ffmpeg_decoder_video_sample_cb(uint8_t *buf, size_t bu
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(59, 8, 100)
 	packet->time_base = decoder->synthetic_time_base;
 #endif
+	const int64_t probe_pts = packet->pts;
+	chiaki_lat_probe_begin(probe_pts, decoder->log);
 	decoder->synthetic_packet_pts += synthetic_duration_pts;
 	int r;
 send_packet:
@@ -230,6 +233,7 @@ send_packet:
 		}
 	}
 	av_packet_free(&packet);
+	chiaki_lat_probe_mark(probe_pts, CHIAKI_LAT_DECODED);
 	chiaki_mutex_unlock(&decoder->mutex);
 	decoder->frame_available_cb(decoder, decoder->frame_available_cb_user);
 	return true;

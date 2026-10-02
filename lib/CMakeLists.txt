@@ -4,6 +4,7 @@ set(HEADER_FILES
 		include/chiaki/common.h
 		include/chiaki/sock.h
 		include/chiaki/thread.h
+		include/chiaki/latprobe.h
 		include/chiaki/base64.h
 		include/chiaki/http.h
 		include/chiaki/log.h
@@ -49,6 +50,7 @@ set(SOURCE_FILES
 		src/sock.c
 		src/session.c
 		src/thread.c
+		src/latprobe.c
 		src/base64.c
 		src/http.c
 		src/log.c

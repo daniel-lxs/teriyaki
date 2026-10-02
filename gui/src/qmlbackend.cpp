@@ -1,6 +1,7 @@
 #include "qmlbackend.h"
 #include "qmlsettings.h"
 #include "qmlmainwindow.h"
+#include "chiaki/latprobe.h"
 #include "streamsession.h"
 #include "controllermanager.h"
 #include "psnaccountid.h"
@@ -1114,6 +1115,8 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
         ChiakiFfmpegFrame frame = chiaki_ffmpeg_decoder_pull_frame(decoder, &frames_lost);
         if (!frame.frame)
             return;
+        const int64_t probe_pts = frame.frame->pts;
+        chiaki_lat_probe_mark(probe_pts, CHIAKI_LAT_PULLED);
         logDecoderDeliveryStats(static_cast<qint64>(chiaki_time_now_monotonic_us()), frames_lost, frame.recovered);
         logDecoderFramePtsStats(static_cast<qint64>(chiaki_time_now_monotonic_us()), frame.pts, frame.duration);
         if (frame.recovered)
@@ -1126,6 +1129,7 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
             return;
         }
         const qint64 prepare_end_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+        chiaki_lat_probe_mark(probe_pts, CHIAKI_LAT_PREPARED);
         if (prepare_end_us >= prepare_begin_us && prepare_end_us - prepare_begin_us >= 5000) {
             CHIAKI_NOISY_DEBUG().nospace()
                 << "[decode] prepare_frame_us=" << (prepare_end_us - prepare_begin_us)

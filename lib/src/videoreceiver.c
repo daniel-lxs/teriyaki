@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-AGPL-3.0-only-OpenSSL
 
 #include <chiaki/videoreceiver.h>
+#include <chiaki/latprobe.h>
 #include "../include/chiaki/session.h"
 
 #include <string.h>
@@ -168,6 +169,7 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
 		}
 
 		video_receiver->frame_index_cur = frame_index;
+		chiaki_lat_probe_first_packet();
 		err = chiaki_frame_processor_alloc_frame(&video_receiver->frame_processor, packet);
 		if(err != CHIAKI_ERR_SUCCESS)
 			CHIAKI_LOGW(video_receiver->log, "Video receiver could not allocate frame for packet.");
