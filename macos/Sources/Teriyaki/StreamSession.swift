@@ -178,7 +178,7 @@ final class SessionLog {
     }()
 
     init() {
-        let directory = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("Logs/Chiaki")
+        let directory = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("Logs/Teriyaki")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let name = DateFormatter()
         name.dateFormat = "yyyy-MM-dd_HH-mm-ss"

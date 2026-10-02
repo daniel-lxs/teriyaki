@@ -1,12 +1,12 @@
 import SwiftUI
 
 @main
-struct ChiakiApp: App {
+struct TeriyakiApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var store = ConsoleStore(demo: CommandLine.arguments.contains("--demo"))
 
     var body: some Scene {
-        Window("Chiaki", id: "main") {
+        Window("Teriyaki", id: "main") {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 460, minHeight: 300)

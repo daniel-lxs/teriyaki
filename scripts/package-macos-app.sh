@@ -1,9 +1,9 @@
 #!/bin/sh
-# Builds dist/Chiaki.app, the native macOS app: SwiftUI on top of a statically linked chiaki-lib.
+# Builds dist/Teriyaki.app, the native macOS app: SwiftUI on top of a statically linked chiaki-lib.
 set -e
 cd "$(dirname "$0")/.."
 BP=$(brew --prefix)
-APP=dist/Chiaki.app
+APP=dist/Teriyaki.app
 SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
 
 if [ ! -f build-lib/build.ninja ]; then
@@ -21,8 +21,8 @@ swift build -c release --package-path macos
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp macos/.build/release/Chiaki "$APP/Contents/MacOS/"
+cp macos/.build/release/Teriyaki "$APP/Contents/MacOS/"
 cp macos/Info.plist "$APP/Contents/"
-cp gui/chiaking.icns "$APP/Contents/Resources/AppIcon.icns"
+cp macos/Resources/AppIcon.icns "$APP/Contents/Resources/"
 codesign --force --sign - "$APP"
 echo "Built $APP"

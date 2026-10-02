@@ -5,15 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>Chiaki</string>
+	<string>Teriyaki</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.daniel-lxs.chiaki</string>
+	<string>io.github.daniel-lxs.teriyaki</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Chiaki</string>
+	<string>Teriyaki</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -27,7 +27,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Chiaki looks for PlayStation consoles on your network and connects to them.</string>
+	<string>Teriyaki looks for PlayStation consoles on your network and connects to them.</string>
 	<key>LSSupportsGameMode</key>
 	<true/>
 	<key>NSPrincipalClass</key>

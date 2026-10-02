@@ -24,7 +24,7 @@ let staticLibraries = [
 ]
 
 let package = Package(
-    name: "Chiaki",
+    name: "Teriyaki",
     platforms: [.macOS(.v14)],
     targets: [
         .target(
@@ -33,9 +33,9 @@ let package = Package(
             cSettings: [.unsafeFlags(["-I\(root)/lib/include", "-I\(lib)/lib/include"])]
         ),
         .executableTarget(
-            name: "Chiaki",
+            name: "Teriyaki",
             dependencies: ["CChiaki"],
-            path: "Sources/Chiaki",
+            path: "Sources/Teriyaki",
             linkerSettings: [
                 .unsafeFlags(staticLibraries),
                 .linkedLibrary("z"),
