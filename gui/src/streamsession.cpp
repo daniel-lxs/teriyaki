@@ -1996,6 +1996,18 @@ void StreamSession::QueueAudioOutData(const QByteArray &audio_data)
 			memcpy(audio_out_ring_buf.data(), data + first_copy, data_size - first_copy);
 		audio_out_ring_write_pos = (audio_out_ring_write_pos + data_size) % capacity;
 		audio_out_ring_fill += data_size;
+
+		// A backlog never drains at real-time playback, so skip ahead to the newest frame.
+		if(audio_out_ring_fill > (size_t)audio_buffer_size && audio_out_ring_fill > data_size
+			&& SDL_GetQueuedAudioSize(audio_out) >= (Uint32)audio_buffer_size)
+		{
+			size_t bytes_to_drop = audio_out_ring_fill - data_size;
+			audio_out_ring_read_pos = (audio_out_ring_read_pos + bytes_to_drop) % capacity;
+			audio_out_ring_fill -= bytes_to_drop;
+			audio_backlog_drops++;
+			if(audio_backlog_drops == 1 || audio_backlog_drops % 50 == 0)
+				CHIAKI_LOGI(log.GetChiakiLog(), "Audio backlog skipped (%u times so far, %zu bytes this time)", audio_backlog_drops, bytes_to_drop);
+		}
 	}
 
 	{
