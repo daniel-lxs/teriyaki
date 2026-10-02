@@ -77,6 +77,12 @@ final class StreamWindowController: NSObject, NSWindowDelegate {
         self.window = window
     }
 
+    /// Debug aid: takes the window off screen for a moment, as when the user switches away.
+    func hideBriefly(seconds: Double) {
+        window?.orderOut(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.window?.makeKeyAndOrderFront(nil) }
+    }
+
     func close() {
         guard let window else { return }
         self.window = nil

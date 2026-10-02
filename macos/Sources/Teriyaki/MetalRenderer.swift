@@ -16,11 +16,15 @@ final class MetalRenderer: VideoOutput {
     private var textureCache: CVMetalTextureCache?
     private var session: VTDecompressionSession?
     private var sessionFormat: CMVideoFormatDescription?
-    private let state = OSAllocatedUnfairLock(initialState: State())
+    private let state = OSAllocatedUnfairLock(uncheckedState: State())
+
+    private let renderQueue = DispatchQueue(label: "render", qos: .userInteractive)
 
     private struct State {
         var needsKeyframe = false
         var timings = VideoTimings()
+        var pending: (image: CVPixelBuffer, arrival: CFTimeInterval)?
+        var rendering = false
     }
 
     var layer: CALayer { metalLayer }
@@ -85,7 +89,7 @@ final class MetalRenderer: VideoOutput {
     func enqueue(_ data: UnsafeBufferPointer<UInt8>) -> Bool {
         let arrival = CACurrentMediaTime()
         guard let sample = parser.sample(from: data) else { return !parser.lastHadPicture }
-        if state.withLock({ state -> Bool in
+        if state.withLockUnchecked({ state -> Bool in
             defer { state.needsKeyframe = false }
             return state.needsKeyframe
         }) {
@@ -97,22 +101,25 @@ final class MetalRenderer: VideoOutput {
         ) { [weak self] status, _, image, _, _ in
             guard let self else { return }
             guard status == noErr, let image else {
-                self.state.withLock { $0.needsKeyframe = true }
+                self.state.withLockUnchecked { $0.needsKeyframe = true }
                 return
             }
             let decoded = CACurrentMediaTime() - arrival
-            self.state.withLock {
-                $0.timings.frames += 1
-                $0.timings.decodeTotal += decoded
-                $0.timings.decodeMax = max($0.timings.decodeMax, decoded)
+            let start = self.state.withLockUnchecked { state -> Bool in
+                state.timings.frames += 1
+                state.timings.decodeTotal += decoded
+                state.timings.decodeMax = max(state.timings.decodeMax, decoded)
+                state.pending = (image, arrival)
+                defer { state.rendering = true }
+                return !state.rendering
             }
-            self.present(image, arrival: arrival)
+            if start { self.renderQueue.async { self.drain() } }
         }
         return status == noErr
     }
 
     func takeTimings() -> VideoTimings {
-        state.withLock { state in
+        state.withLockUnchecked { state in
             defer { state.timings = VideoTimings() }
             return state.timings
         }
@@ -135,6 +142,19 @@ final class MetalRenderer: VideoOutput {
         session = created
         sessionFormat = format
         return created
+    }
+
+    /// Presents the newest decoded frame. Rendering runs apart from decoding so a display that isn't taking frames can't stall the stream.
+    private func drain() {
+        while true {
+            let next = state.withLockUnchecked { state -> (image: CVPixelBuffer, arrival: CFTimeInterval)? in
+                defer { state.pending = nil }
+                if state.pending == nil { state.rendering = false }
+                return state.pending
+            }
+            guard let next else { return }
+            present(next.image, arrival: next.arrival)
+        }
     }
 
     private func present(_ image: CVPixelBuffer, arrival: CFTimeInterval) {
@@ -168,7 +188,7 @@ final class MetalRenderer: VideoOutput {
         drawable.addPresentedHandler { [weak self] shown in
             guard let self, shown.presentedTime > 0 else { return }
             let delay = shown.presentedTime - arrival
-            self.state.withLock {
+            self.state.withLockUnchecked {
                 $0.timings.presented += 1
                 $0.timings.displayTotal += delay
                 $0.timings.displayMax = max($0.timings.displayMax, delay)

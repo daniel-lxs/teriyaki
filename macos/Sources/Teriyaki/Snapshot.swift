@@ -58,20 +58,26 @@ enum Snapshot {
                 (renderer as? MetalRenderer)?.captureURL = URL(fileURLWithPath: CommandLine.arguments[flag + 1])
             }
         }
+        if CommandLine.arguments.contains("--occlude") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { window.hideBriefly(seconds: 2) }
+        }
         var index = 0
         var accepted = 0
+        var slowest = 0.0
         let loops = 3
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { timer in
                 guard index < frames.count * loops else {
                     timer.invalidate()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        print("\(output): sent=\(index) accepted=\(accepted) | \(renderer.takeTimings().summary)")
+                        print("\(output): sent=\(index) accepted=\(accepted) slowest enqueue=\(String(format: "%.1f", slowest * 1000)) ms | \(renderer.takeTimings().summary)")
                         exit(0)
                     }
                     return
                 }
+                let began = CACurrentMediaTime()
                 let ok = frames[index % frames.count].withUnsafeBufferPointer { renderer.enqueue($0) }
+                slowest = max(slowest, CACurrentMediaTime() - began)
                 if ok { accepted += 1 }
                 index += 1
             }
