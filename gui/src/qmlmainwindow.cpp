@@ -60,6 +60,29 @@ extern "C" {
 #include <atomic>
 #if defined(Q_OS_MACOS)
 #include <objc/message.h>
+#include <objc/runtime.h>
+
+// Qt >= 6.10 wraps the view's CAMetalLayer in a container layer; MoltenVK needs the real one.
+static void *metalLayerForView(WId view)
+{
+    auto send = reinterpret_cast<id(*)(id, SEL)>(objc_msgSend);
+    auto is_kind = reinterpret_cast<BOOL(*)(id, SEL, Class)>(objc_msgSend);
+    const SEL is_kind_sel = sel_registerName("isKindOfClass:");
+    Class metal_class = objc_getClass("CAMetalLayer");
+    id layer = send(reinterpret_cast<id>(view), sel_registerName("layer"));
+    if (!layer || !metal_class || is_kind(layer, is_kind_sel, metal_class))
+        return layer;
+    id sublayers = send(layer, sel_registerName("sublayers"));
+    if (!sublayers)
+        return layer;
+    const unsigned long count = reinterpret_cast<unsigned long(*)(id, SEL)>(objc_msgSend)(sublayers, sel_registerName("count"));
+    for (unsigned long i = 0; i < count; i++) {
+        id sub = reinterpret_cast<id(*)(id, SEL, unsigned long)>(objc_msgSend)(sublayers, sel_registerName("objectAtIndex:"), i);
+        if (is_kind(sub, is_kind_sel, metal_class))
+            return sub;
+    }
+    return layer;
+}
 #endif
 
 Q_LOGGING_CATEGORY(chiakiGui, "chiaki.gui", QtInfoMsg);
@@ -5865,7 +5888,7 @@ void QmlMainWindow::createSwapchain()
 #elif defined(Q_OS_MACOS)
     VkMetalSurfaceCreateInfoEXT surfaceInfo = {};
     surfaceInfo.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
-    surfaceInfo.pLayer = static_cast<const CAMetalLayer*>(reinterpret_cast<void*(*)(id, SEL)>(objc_msgSend)(reinterpret_cast<id>(winId()), sel_registerName("layer")));
+    surfaceInfo.pLayer = static_cast<const CAMetalLayer*>(metalLayerForView(winId()));
     err = vk_funcs.vkCreateMetalSurfaceEXT(placebo_vk_inst->instance, &surfaceInfo, nullptr, &surface);
 #elif defined(Q_OS_WIN)
     VkWin32SurfaceCreateInfoKHR surfaceInfo = {};

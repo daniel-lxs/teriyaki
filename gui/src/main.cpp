@@ -19,6 +19,8 @@ int main(int argc, char *argv[]) { return real_main(argc, argv); }
 #include <controllermanager.h>
 #include <discoverymanager.h>
 #include <qmlmainwindow.h>
+#include <QFileInfo>
+#include <QDir>
 #include <QApplication>
 #include <QtTypes>
 
@@ -79,6 +81,9 @@ int real_main(int argc, char *argv[])
 	QGuiApplication::setApplicationDisplayName("chiaki-ng");
 #if defined(Q_OS_MACOS)
 	qputenv("QT_MTL_NO_TRANSACTION", "1");
+	const QFileInfo bundled_icd(QFileInfo(QString::fromLocal8Bit(argv[0])).absoluteDir().absoluteFilePath("../Resources/vulkan/icd.d/MoltenVK_icd.json"));
+	if(!qEnvironmentVariableIsSet("VK_DRIVER_FILES") && bundled_icd.exists())
+		qputenv("VK_DRIVER_FILES", bundled_icd.canonicalFilePath().toUtf8());
 #endif
 #if defined(Q_OS_LINUX)
 	if(qEnvironmentVariableIsSet("FLATPAK_ID"))
