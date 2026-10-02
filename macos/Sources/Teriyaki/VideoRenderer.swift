@@ -1,44 +1,45 @@
 import AVFoundation
 import CoreMedia
 
-/// Feeds the console's H.264/HEVC stream to a display layer, which decodes it in hardware and shows each frame at once.
-final class VideoRenderer {
-    let layer = AVSampleBufferDisplayLayer()
+struct VideoTimings {
+    var frames = 0
+    var presented = 0
+    var decodeTotal = 0.0
+    var decodeMax = 0.0
+    var displayTotal = 0.0
+    var displayMax = 0.0
 
+    var summary: String {
+        guard frames > 0 else { return "no frames" }
+        let decode = String(format: "decode %.1f/%.1f ms", decodeTotal / Double(frames) * 1000, decodeMax * 1000)
+        guard presented > 0 else { return decode }
+        return decode + String(format: ", on screen %.1f/%.1f ms (avg/max after arrival), shown %d of %d",
+                               displayTotal / Double(presented) * 1000, displayMax * 1000, presented, frames)
+    }
+}
+
+protocol VideoOutput: AnyObject {
+    var layer: CALayer { get }
+    /// Returns false when the frame could not be used, so the caller can ask for a new keyframe.
+    func enqueue(_ data: UnsafeBufferPointer<UInt8>) -> Bool
+    func takeTimings() -> VideoTimings
+}
+
+/// Turns the console's Annex B stream into sample buffers and keeps the format description up to date.
+final class StreamParser {
     private let hevc: Bool
     private var vps: [UInt8] = []
     private var sps: [UInt8] = []
     private var pps: [UInt8] = []
-    private var format: CMVideoFormatDescription?
     private var formatStale = false
-    private(set) var framesShown = 0
+    private(set) var format: CMVideoFormatDescription?
+    private(set) var lastHadPicture = false
 
     init(hevc: Bool) {
         self.hevc = hevc
-        layer.videoGravity = .resizeAspect
-        layer.backgroundColor = CGColor(gray: 0, alpha: 1)
     }
 
-    /// Returns false when the frame could not be queued, so the caller can ask for a new keyframe.
-    func enqueue(_ data: UnsafeBufferPointer<UInt8>) -> Bool {
-        guard let sample = makeSample(data) else { return !hasPayload }
-        let renderer = layer.sampleBufferRenderer
-        if renderer.status == .failed || renderer.requiresFlushToResumeDecoding {
-            renderer.flush()
-            return false
-        }
-        renderer.enqueue(sample)
-        framesShown += 1
-        return true
-    }
-
-    func testSample(_ data: UnsafeBufferPointer<UInt8>) -> CMSampleBuffer? {
-        makeSample(data)
-    }
-
-    private var hasPayload = false
-
-    private func makeSample(_ data: UnsafeBufferPointer<UInt8>) -> CMSampleBuffer? {
+    func sample(from data: UnsafeBufferPointer<UInt8>) -> CMSampleBuffer? {
         var payload = [UInt8]()
         payload.reserveCapacity(data.count + 16)
         Self.forEachUnit(in: data) { unit in
@@ -54,8 +55,8 @@ final class VideoRenderer {
             }
         }
         if formatStale { rebuildFormat() }
-        hasPayload = !payload.isEmpty
-        guard hasPayload, let format else { return nil }
+        lastHadPicture = !payload.isEmpty
+        guard lastHadPicture, let format else { return nil }
         return Self.makeSample(payload, format: format)
     }
 
@@ -133,5 +134,37 @@ final class VideoRenderer {
             while end > start.payload, data[end - 1] == 0 { end -= 1 }
             if end > start.payload { body(data[start.payload..<end]) }
         }
+    }
+}
+
+/// Hands the stream to a system display layer, which decodes and shows it. Simple, but its timing can't be observed.
+final class LayerRenderer: VideoOutput {
+    private let display = AVSampleBufferDisplayLayer()
+    private let parser: StreamParser
+    private var frames = 0
+
+    var layer: CALayer { display }
+
+    init(hevc: Bool) {
+        parser = StreamParser(hevc: hevc)
+        display.videoGravity = .resizeAspect
+        display.backgroundColor = CGColor(gray: 0, alpha: 1)
+    }
+
+    func enqueue(_ data: UnsafeBufferPointer<UInt8>) -> Bool {
+        guard let sample = parser.sample(from: data) else { return !parser.lastHadPicture }
+        let renderer = display.sampleBufferRenderer
+        if renderer.status == .failed || renderer.requiresFlushToResumeDecoding {
+            renderer.flush()
+            return false
+        }
+        renderer.enqueue(sample)
+        frames += 1
+        return true
+    }
+
+    func takeTimings() -> VideoTimings {
+        defer { frames = 0 }
+        return VideoTimings(frames: frames)
     }
 }

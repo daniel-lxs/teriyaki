@@ -2,10 +2,10 @@ import AppKit
 import AVFoundation
 
 final class StreamView: NSView {
-    private let display: AVSampleBufferDisplayLayer
+    private let display: CALayer
     private var hideTimer: Timer?
 
-    init(display: AVSampleBufferDisplayLayer) {
+    init(display: CALayer) {
         self.display = display
         super.init(frame: .zero)
         wantsLayer = true
@@ -23,6 +23,10 @@ final class StreamView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         display.frame = bounds
+        if let metal = display as? CAMetalLayer {
+            metal.contentsScale = window?.backingScaleFactor ?? 2
+            metal.drawableSize = convertToBacking(bounds).size
+        }
         CATransaction.commit()
     }
 
@@ -46,7 +50,7 @@ final class StreamWindowController: NSObject, NSWindowDelegate {
     var onClose: (() -> Void)?
     private var window: NSWindow?
 
-    func show(title: String, display: AVSampleBufferDisplayLayer, fullScreen: Bool) {
+    func show(title: String, display: CALayer, fullScreen: Bool) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],

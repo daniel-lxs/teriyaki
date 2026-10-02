@@ -1,10 +1,9 @@
 import AppKit
 import AVFoundation
-import VideoToolbox
 
 /// Debug aids, driven by launch arguments.
 /// `--snapshot <path>` writes each visible window to a PNG and quits.
-/// `--test-video <annexb file> <hevc|h264> <png>` plays a raw stream through the renderer and saves one decoded frame.
+/// `--test-video <annexb file> <hevc|h264> <metal|metal-sync|layer>` plays a raw stream through a renderer and prints its timings.
 enum Snapshot {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
@@ -34,7 +33,7 @@ enum Snapshot {
         data.withUnsafeBytes { raw in
             let bytes = raw.bindMemory(to: UInt8.self)
             var current: [UInt8] = []
-            VideoRenderer.forEachUnit(in: bytes) { unit in
+            StreamParser.forEachUnit(in: bytes) { unit in
                 let type = hevc ? (unit[unit.startIndex] >> 1) & 0x3f : unit[unit.startIndex] & 0x1f
                 if type == delimiter, !current.isEmpty {
                     frames.append(current)
@@ -45,44 +44,37 @@ enum Snapshot {
             }
             if !current.isEmpty { frames.append(current) }
         }
-        let renderer = VideoRenderer(hevc: hevc)
+        let renderer: VideoOutput
+        switch output {
+        case "layer": renderer = LayerRenderer(hevc: hevc)
+        case "metal-sync": renderer = MetalRenderer(hevc: hevc, displaySync: true)!
+        default: renderer = MetalRenderer(hevc: hevc)!
+        }
         let window = StreamWindowController()
-        window.show(title: "Video Test", display: renderer.layer, fullScreen: false)
+        window.show(title: "Video Test", display: renderer.layer, fullScreen: CommandLine.arguments.contains("--fullscreen"))
         keep = [renderer, window]
+        if let flag = CommandLine.arguments.firstIndex(of: "--capture"), CommandLine.arguments.count > flag + 1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                (renderer as? MetalRenderer)?.captureURL = URL(fileURLWithPath: CommandLine.arguments[flag + 1])
+            }
+        }
         var index = 0
         var accepted = 0
-        Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { timer in
-            guard index < frames.count else {
-                timer.invalidate()
-                let status = renderer.layer.sampleBufferRenderer.status
-                let error = renderer.layer.sampleBufferRenderer.error.map { "\($0)" } ?? "none"
-                let decoded = renderer.decodeForTest(frames.first ?? [], output: output)
-                print("frames=\(frames.count) accepted=\(accepted) status=\(status.rawValue) error=\(error) decoded=\(decoded)")
-                exit(0)
+        let loops = 3
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { timer in
+                guard index < frames.count * loops else {
+                    timer.invalidate()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        print("\(output): sent=\(index) accepted=\(accepted) | \(renderer.takeTimings().summary)")
+                        exit(0)
+                    }
+                    return
+                }
+                let ok = frames[index % frames.count].withUnsafeBufferPointer { renderer.enqueue($0) }
+                if ok { accepted += 1 }
+                index += 1
             }
-            let ok = frames[index].withUnsafeBufferPointer { renderer.enqueue($0) }
-            if ok { accepted += 1 }
-            index += 1
         }
-    }
-}
-
-extension VideoRenderer {
-    /// Decodes one access unit with the format this renderer built and writes it as a PNG.
-    func decodeForTest(_ frame: [UInt8], output: String) -> Bool {
-        guard let sample = frame.withUnsafeBufferPointer({ testSample($0) }),
-              let format = CMSampleBufferGetFormatDescription(sample) else { return false }
-        var session: VTDecompressionSession?
-        guard VTDecompressionSessionCreate(allocator: kCFAllocatorDefault, formatDescription: format, decoderSpecification: nil,
-                                           imageBufferAttributes: nil, outputCallback: nil, decompressionSessionOut: &session) == noErr,
-              let session else { return false }
-        var written = false
-        VTDecompressionSessionDecodeFrame(session, sampleBuffer: sample, flags: [], infoFlagsOut: nil) { _, _, image, _, _ in
-            guard let image else { return }
-            let bitmap = NSBitmapImageRep(ciImage: CIImage(cvPixelBuffer: image))
-            written = (try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: output))) != nil
-        }
-        VTDecompressionSessionWaitForAsynchronousFrames(session)
-        return written
     }
 }

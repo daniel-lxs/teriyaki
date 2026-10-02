@@ -36,6 +36,11 @@ final class ConsoleStore: ObservableObject {
             Task { @MainActor in self?.tick() }
         }
         tick()
+        if CommandLine.arguments.contains("--connect") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                if let first = self.consoles.first { self.connect(first) }
+            }
+        }
         streamWindow.onClose = { [weak self] in
             Task { @MainActor in self?.stop() }
         }

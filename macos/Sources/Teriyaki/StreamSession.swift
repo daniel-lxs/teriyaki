@@ -21,7 +21,7 @@ final class StreamSession {
     var onQuit: ((_ isError: Bool, _ message: String) -> Void)?
     var onLoginPIN: ((_ incorrect: Bool) -> Void)?
 
-    let renderer: VideoRenderer
+    let renderer: VideoOutput
     let input = ControllerInput()
 
     private let configuration: Configuration
@@ -41,7 +41,12 @@ final class StreamSession {
 
     init(configuration: Configuration) {
         self.configuration = configuration
-        renderer = VideoRenderer(hevc: configuration.codec != 0)
+        let hevc = configuration.codec != 0
+        if UserDefaults.standard.string(forKey: "renderer") != "layer", let metal = MetalRenderer(hevc: hevc) {
+            renderer = metal
+        } else {
+            renderer = LayerRenderer(hevc: hevc)
+        }
         audio = AudioPlayer(bufferMilliseconds: configuration.audioBufferMilliseconds)
     }
 
@@ -158,9 +163,7 @@ final class StreamSession {
             defer { counters = Counters() }
             return counters
         }
-        let video = renderer.layer.sampleBufferRenderer
-        let error = video.error.map { " error=\($0.localizedDescription)" } ?? ""
-        log.write(level: 4, "[stats] 5 s: video frames=\(snapshot.frames) rejected=\(snapshot.rejected) mbps=\(String(format: "%.1f", Double(snapshot.bytes) * 8 / 5_000_000)) renderer=\(video.status.rawValue)\(error) audio ms=\(snapshot.audioFrames / 48) controller=\(input.reports)")
+        log.write(level: 4, "[stats] 5 s: frames=\(snapshot.frames) rejected=\(snapshot.rejected) mbps=\(String(format: "%.1f", Double(snapshot.bytes) * 8 / 5_000_000)) | \(renderer.takeTimings().summary) | audio ms=\(snapshot.audioFrames / 48) controller=\(input.reports)")
     }
 
     private static func from(_ pointer: UnsafeMutableRawPointer?) -> StreamSession {
