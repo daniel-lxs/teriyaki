@@ -13,7 +13,7 @@ struct ContentView: View {
                 } description: {
                     Text("Pair a PlayStation on your network to play it from this Mac.")
                 } actions: {
-                    Button("Pair Console…") { store.pairNewConsole() }
+                    Button("Pair Console…") { store.isPairing = true }
                 }
             } else {
                 List(store.consoles, selection: $selection) { console in
@@ -30,7 +30,7 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    store.pairNewConsole()
+                    store.isPairing = true
                 } label: {
                     Label("Pair Console", systemImage: "plus")
                 }
@@ -38,8 +38,12 @@ struct ContentView: View {
             }
         }
         .focusedSceneValue(\.selectedConsole, store.console(selection))
+        .sheet(isPresented: $store.isPairing) {
+            PairingSheet()
+        }
         .task {
             if CommandLine.arguments.contains("--show-settings") { openSettings() }
+            if CommandLine.arguments.contains("--show-pairing") { store.isPairing = true }
         }
         .alert("Can’t Connect", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}

@@ -44,3 +44,4 @@ site/
 /.venv
 *.log
 /macos/.build
+/build-lib

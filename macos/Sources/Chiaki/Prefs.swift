@@ -1,8 +1,8 @@
 import Foundation
 
-/// Settings and pairings shared with the streaming engine, which stores them under its own domain.
-final class EnginePrefs: ObservableObject {
-    static let shared = EnginePrefs()
+/// Pairings and stream settings. Stored in the domain chiaki-ng uses, so existing pairings carry over.
+final class Prefs: ObservableObject {
+    static let shared = Prefs()
 
     private let engine = UserDefaults(suiteName: "com.chiaki.Chiaki") ?? .standard
     private let local = UserDefaults.standard
@@ -15,15 +15,45 @@ final class EnginePrefs: ObservableObject {
             let prefix = "registered_hosts.\(index)."
             guard let mac = engine.data(forKey: prefix + "server_mac"), !mac.isEmpty else { return nil }
             let id = mac.map { String(format: "%02X", $0) }.joined()
-            let key = engine.data(forKey: prefix + "rp_regist_key") ?? Data()
-            let registKey = String(decoding: key.prefix { $0 != 0 }, as: UTF8.self)
             return Console(
                 id: id,
                 name: engine.string(forKey: prefix + "server_nickname") ?? "PlayStation",
                 isPS5: engine.integer(forKey: prefix + "target") >= 1_000_000,
-                registKey: registKey,
+                registKey: engine.data(forKey: prefix + "rp_regist_key") ?? Data(),
+                morning: engine.data(forKey: prefix + "rp_key") ?? Data(),
                 address: addresses[id]
             )
+        }
+    }
+
+    func save(_ host: PairedHost) {
+        let count = engine.integer(forKey: "registered_hosts.size")
+        let existing = (1...max(count, 1)).first { engine.data(forKey: "registered_hosts.\($0).server_mac") == host.mac && count > 0 }
+        let index = existing ?? count + 1
+        let prefix = "registered_hosts.\(index)."
+        engine.set(host.target, forKey: prefix + "target")
+        engine.set(host.name, forKey: prefix + "server_nickname")
+        engine.set(host.mac, forKey: prefix + "server_mac")
+        engine.set(host.registKey, forKey: prefix + "rp_regist_key")
+        engine.set(host.keyType, forKey: prefix + "rp_key_type")
+        engine.set(host.key, forKey: prefix + "rp_key")
+        engine.set(host.accessPointSSID, forKey: prefix + "ap_ssid")
+        engine.set(host.accessPointBSSID, forKey: prefix + "ap_bssid")
+        engine.set(host.accessPointKey, forKey: prefix + "ap_key")
+        engine.set(host.accessPointName, forKey: prefix + "ap_name")
+        engine.set(host.consolePIN, forKey: prefix + "console_pin")
+        if existing == nil { engine.set(index, forKey: "registered_hosts.size") }
+    }
+
+    /// The 8-byte PSN account ID that pairing and connecting need.
+    var accountID: Data? {
+        get {
+            guard let text = engine.string(forKey: "settings.psn_account_id"), let data = Data(base64Encoded: text), data.count == 8 else { return nil }
+            return data
+        }
+        set {
+            objectWillChange.send()
+            engine.set(newValue?.base64EncodedString(), forKey: "settings.psn_account_id")
         }
     }
 
@@ -75,24 +105,9 @@ final class EnginePrefs: ObservableObject {
         set { set(Int(newValue.rounded()) * 1000, "bitrate_local_ps5") }
     }
 
-    var scalingQuality: String {
-        get { string("placebo_preset", default: "high_quality") }
-        set { set(newValue, "placebo_preset") }
-    }
-
-    var showStatistics: Bool {
-        get { bool("show_stream_stats", default: false) }
-        set { set(newValue, "show_stream_stats") }
-    }
-
     var audioBufferBytes: Int {
         get { int("audio_buffer_size", default: 9600) }
         set { set(newValue, "audio_buffer_size") }
-    }
-
-    var renderer: String {
-        get { string("render_backend", default: "vulkan") }
-        set { set(newValue, "render_backend") }
     }
 
     var startFullScreen: Bool {
@@ -100,13 +115,4 @@ final class EnginePrefs: ObservableObject {
         set { objectWillChange.send(); local.set(newValue, forKey: "startFullScreen") }
     }
 
-    var framePacing: Bool {
-        get { local.bool(forKey: "framePacing") }
-        set { objectWillChange.send(); local.set(newValue, forKey: "framePacing") }
-    }
-
-    var logFrameTiming: Bool {
-        get { local.bool(forKey: "logFrameTiming") }
-        set { objectWillChange.send(); local.set(newValue, forKey: "logFrameTiming") }
-    }
 }

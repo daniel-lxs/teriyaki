@@ -14,7 +14,7 @@ struct ChiakiApp: App {
         .defaultSize(width: 540, height: 380)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Pair Console…") { store.pairNewConsole() }
+                Button("Pair Console…") { store.isPairing = true }
                     .keyboardShortcut("n")
             }
             ConsoleCommands(store: store)
@@ -44,6 +44,10 @@ struct ConsoleCommands: Commands {
             .disabled(selected?.status != .standby)
 
             Divider()
+
+            Button("Press PS Button") { store.pressPS() }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(store.activity.consoleID == nil)
 
             Button("Stop Streaming") { store.stop() }
                 .keyboardShortcut(".")

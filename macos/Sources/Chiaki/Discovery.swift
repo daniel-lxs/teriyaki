@@ -8,6 +8,7 @@ final class Discovery {
         var hostID: String
         var name: String
         var isPS5: Bool
+        var systemVersion: String
         var runningApp: String?
     }
 
@@ -47,8 +48,7 @@ final class Discovery {
         }
     }
 
-    func wake(address: String, registKey: String, isPS5: Bool) {
-        guard let credential = UInt64(registKey, radix: 16) else { return }
+    func wake(address: String, credential: UInt64, isPS5: Bool) {
         let kind = isPS5 ? Self.ps5 : Self.ps4
         let message = "WAKEUP * HTTP/1.1\nclient-type:vr\nauth-type:R\nmodel:w\napp-type:r\n"
             + "user-credential:\(credential)\ndevice-discovery-protocol-version:\(kind.version)\n"
@@ -104,6 +104,7 @@ final class Discovery {
             hostID: hostID.uppercased(),
             name: headers["host-name"] ?? "PlayStation",
             isPS5: headers["host-type"] == "PS5",
+            systemVersion: headers["system-version"] ?? "",
             runningApp: headers["running-app-name"]
         )
     }

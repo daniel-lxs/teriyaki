@@ -7,15 +7,13 @@ struct SettingsView: View {
                 .tabItem { Label("Video", systemImage: "display") }
             AudioSettings()
                 .tabItem { Label("Audio", systemImage: "speaker.wave.2") }
-            AdvancedSettings()
-                .tabItem { Label("Advanced", systemImage: "gearshape.2") }
         }
         .frame(width: 480)
     }
 }
 
 private struct VideoSettings: View {
-    @ObservedObject private var prefs = EnginePrefs.shared
+    @ObservedObject private var prefs = Prefs.shared
 
     var body: some View {
         Form {
@@ -32,7 +30,6 @@ private struct VideoSettings: View {
                 }
                 Picker("Codec", selection: $prefs.codec) {
                     Text("HEVC").tag("h265")
-                    Text("HEVC (HDR)").tag("h265_hdr")
                     Text("H.264").tag("h264")
                 }
                 LabeledContent("Bitrate") {
@@ -48,21 +45,17 @@ private struct VideoSettings: View {
             }
 
             Section {
-                Picker("Scaling Quality", selection: $prefs.scalingQuality) {
-                    Text("Fast").tag("fast")
-                    Text("Balanced").tag("default")
-                    Text("High Quality").tag("high_quality")
-                }
                 Toggle("Start in Full Screen", isOn: $prefs.startFullScreen)
-                Toggle("Show Performance Statistics", isOn: $prefs.showStatistics)
             }
         }
         .formStyle(.grouped)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
 private struct AudioSettings: View {
-    @ObservedObject private var prefs = EnginePrefs.shared
+    @ObservedObject private var prefs = Prefs.shared
 
     var body: some View {
         Form {
@@ -77,30 +70,7 @@ private struct AudioSettings: View {
             }
         }
         .formStyle(.grouped)
-    }
-}
-
-private struct AdvancedSettings: View {
-    @ObservedObject private var prefs = EnginePrefs.shared
-
-    var body: some View {
-        Form {
-            Section {
-                Picker("Renderer", selection: $prefs.renderer) {
-                    Text("Vulkan").tag("vulkan")
-                    Text("OpenGL").tag("opengl")
-                }
-                Toggle("Pace Frames Evenly", isOn: $prefs.framePacing)
-            } footer: {
-                Text("Pacing smooths motion and adds 5–10 ms of delay.")
-            }
-
-            Section {
-                Toggle("Log Frame Timing", isOn: $prefs.logFrameTiming)
-            } footer: {
-                Text("Writes per-stage timing to the session log every 5 seconds.")
-            }
-        }
-        .formStyle(.grouped)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
