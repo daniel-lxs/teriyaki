@@ -2542,8 +2542,9 @@ QmlMainWindow::QmlMainWindow(const StreamSessionConnectInfo &connect_info)
     init(connect_info.settings);
     backend->createSession(connect_info);
 
+    // show() runs later and would undo fullscreen, so apply it there.
     if (connect_info.fullscreen || connect_info.zoom || connect_info.stretch)
-        fullscreenTime();
+        start_fullscreen = true;
     if (connect_info.zoom)
         setVideoMode(VideoMode::Zoom);
     else if (connect_info.stretch)
@@ -2916,6 +2917,10 @@ void QmlMainWindow::show()
         else
             showMaximized();
         setWindowAdjustable(true);
+        if (start_fullscreen) {
+            start_fullscreen = false;
+            QTimer::singleShot(500, this, &QmlMainWindow::fullscreenTime);
+        }
     }
 }
 

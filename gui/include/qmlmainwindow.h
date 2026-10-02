@@ -291,6 +291,7 @@ private:
     bool playback_started = false;
     bool preserve_playback_timeline = false;
     bool was_maximized = false;
+    bool start_fullscreen = false;
     bool amd_card = false;
     bool nvidia_card = false;
     bool direct_stream = false;
