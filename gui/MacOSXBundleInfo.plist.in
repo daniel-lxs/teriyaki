@@ -34,5 +34,7 @@
 	<string>For mic support, chiaki-ng requires access to your microphone.</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
+	<key>LSSupportsGameMode</key>
+	<true/>
 </dict>
 </plist>
