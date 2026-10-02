@@ -6989,7 +6989,9 @@ void QmlMainWindow::render()
                     ? 0.80
                     : (present_backpressure_active.loadAcquire() != 0 ? 0.90 : 1.0);
                 const double paced_interval_s = present_submit_interval_s * pace_multiplier;
-                throttleFramePresentation(paced_interval_s);
+                // Pacing holds each frame for its grid slot; skip it in direct mode unless CHIAKI_PACE=1.
+                static const bool keep_pacing = qEnvironmentVariableIntValue("CHIAKI_PACE") == 1;
+                throttleFramePresentation((bypass_frame_queue && !keep_pacing) ? 0.0 : paced_interval_s);
             }
             else
                 throttleFramePresentation(0.0);
