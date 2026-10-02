@@ -43,3 +43,4 @@ site/
 /dist
 /.venv
 *.log
+/macos/.build
