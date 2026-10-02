@@ -39,6 +39,8 @@
 // VERY similar to SCTP, see RFC 4960
 
 #define TAKION_A_RWND 0x19000
+// Socket buffer, separate from the advertised window: 100 KB overflows during decode at high bitrates.
+#define TAKION_SOCKET_RCVBUF 0x400000
 #define TAKION_OUTBOUND_STREAMS 0x64
 #define TAKION_INBOUND_STREAMS 0x64
 
@@ -257,8 +259,13 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_takion_connect(ChiakiTakion *takion, Chiaki
 			CHIAKI_LOGE(takion->log, "Takion had problem reading extra messages from socket using PSN Connection with error: " CHIAKI_SOCKET_ERROR_FMT, CHIAKI_SOCKET_ERROR_VALUE);
 			goto error_sock;
 		}
-		const int rcvbuf_val = takion->a_rwnd;
+		int rcvbuf_val = TAKION_SOCKET_RCVBUF;
 		int r = setsockopt(takion->sock, SOL_SOCKET, SO_RCVBUF, (const CHIAKI_SOCKET_BUF_TYPE)&rcvbuf_val, sizeof(rcvbuf_val));
+		if(r < 0)
+		{
+			rcvbuf_val = takion->a_rwnd;
+			r = setsockopt(takion->sock, SOL_SOCKET, SO_RCVBUF, (const CHIAKI_SOCKET_BUF_TYPE)&rcvbuf_val, sizeof(rcvbuf_val));
+		}
 		if(r < 0)
 		{
 			CHIAKI_LOGE(takion->log, "Takion failed to setsockopt SO_RCVBUF: " CHIAKI_SOCKET_ERROR_FMT, CHIAKI_SOCKET_ERROR_VALUE);
@@ -345,8 +352,24 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_takion_connect(ChiakiTakion *takion, Chiaki
 			ret = CHIAKI_ERR_NETWORK;
 			goto error_pipe;
 		}
-		const int rcvbuf_val = takion->a_rwnd;
+
+#if defined(__APPLE__) && defined(SO_NET_SERVICE_TYPE) && defined(NET_SERVICE_TYPE_VO)
+		// Send controller input ahead of bulk traffic from this machine.
+		{
+			int service_type = NET_SERVICE_TYPE_VO;
+			if(setsockopt(takion->sock, SOL_SOCKET, SO_NET_SERVICE_TYPE, &service_type, sizeof(service_type)) < 0)
+				CHIAKI_LOGW(takion->log, "Takion failed to setsockopt SO_NET_SERVICE_TYPE: " CHIAKI_SOCKET_ERROR_FMT, CHIAKI_SOCKET_ERROR_VALUE);
+			else
+				CHIAKI_LOGI(takion->log, "Takion socket marked as interactive (NET_SERVICE_TYPE_VO)");
+		}
+#endif
+		int rcvbuf_val = TAKION_SOCKET_RCVBUF;
 		int r = setsockopt(takion->sock, SOL_SOCKET, SO_RCVBUF, (const CHIAKI_SOCKET_BUF_TYPE)&rcvbuf_val, sizeof(rcvbuf_val));
+		if(r < 0)
+		{
+			rcvbuf_val = takion->a_rwnd;
+			r = setsockopt(takion->sock, SOL_SOCKET, SO_RCVBUF, (const CHIAKI_SOCKET_BUF_TYPE)&rcvbuf_val, sizeof(rcvbuf_val));
+		}
 		if(r < 0)
 		{
 			CHIAKI_LOGE(takion->log, "Takion failed to setsockopt SO_RCVBUF: " CHIAKI_SOCKET_ERROR_FMT, CHIAKI_SOCKET_ERROR_VALUE);
