@@ -3927,6 +3927,10 @@ static bool upnp_delete_udp_port_mapping(ChiakiLog *log, UPNPGatewayInfo *gw_inf
 */
 static bool get_client_addr_remote_stun(Session *session, char *address, uint16_t *port, chiaki_socket_t *sock, bool ipv4)
 {
+    // This build never contacts third-party STUN servers; internet play is unavailable.
+    CHIAKI_LOGW(session->log, "get_client_addr_remote_stun: third-party STUN lookups are disabled in this build");
+    return false;
+#if 0
     // run STUN test if it hasn't been run yet
     if(session->stun_allocation_increment == -1)
     {
@@ -3959,6 +3963,7 @@ static bool get_client_addr_remote_stun(Session *session, char *address, uint16_
         }
     }
     return true;
+#endif
 }
 
 /**

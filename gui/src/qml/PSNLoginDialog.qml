@@ -404,23 +404,7 @@ DialogView {
                     const username = usernameField.text.trim();
                     if (!username.length || !enabled)
                         return;
-                    const request = new XMLHttpRequest();
-                    request.onreadystatechange = function() {
-                        if (request.readyState === XMLHttpRequest.DONE) {
-                            const response = JSON.parse(request.response);
-                            const accountId = response["encoded_id"];
-                            if (accountId) {
-                                dialog.callback(accountId);
-                                dialog.close();
-                            } else {
-                                enabled = true;
-                                formLabel.text = qsTr("Error: %1!").arg(response["error"]);
-                            }
-                        }
-                    }
-                    request.open("GET", "https://psn.flipscreen.games/search.php?username=%1".arg(encodeURIComponent(username)));
-                    request.send();
-                    enabled = false;
+                    formLabel.text = qsTr("Username lookup is disabled in this build. Use PSN login.");
                 }
             }
         }
